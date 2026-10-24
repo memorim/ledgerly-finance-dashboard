@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from '../fixtures.mjs';
 test('mobile layout and recovery after a failed API request',async({page})=>{
  await page.goto('/');await expect(page.getByRole('heading',{level:1})).toBeVisible();await expect(page.locator('.load-feedback')).toHaveText('');
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+2)).toBe(true);

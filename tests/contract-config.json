@@ -1,0 +1,33 @@
+{
+  "databaseModule": "server.js",
+  "appModule": "server.js",
+  "endpoints": [
+    {
+      "path": "/api/summary"
+    },
+    {
+      "path": "/api/invoices"
+    },
+    {
+      "path": "/api/transactions"
+    },
+    {
+      "method": "post",
+      "path": "/api/invoices",
+      "status": 201,
+      "body": {
+        "client": "Contract client",
+        "title": "Contract invoice",
+        "amount": 123.45,
+        "dueDate": "2030-01-10",
+        "status": "sent"
+      }
+    },
+    {
+      "method": "post",
+      "path": "/api/invoices",
+      "status": 400,
+      "body": {}
+    }
+  ]
+}

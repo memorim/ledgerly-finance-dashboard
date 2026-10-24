@@ -1,0 +1,95 @@
+[
+  {
+    "method": "get",
+    "path": "/api/summary",
+    "status": 200,
+    "body": {
+      "cash": {
+        "balance": "number",
+        "expenses": "number",
+        "goal": "number",
+        "goalPercent": "number",
+        "goalRemaining": "number",
+        "growth": "number",
+        "income": "number",
+        "monthly": [
+          {
+            "expenses": "number",
+            "income": "number",
+            "month": "string"
+          }
+        ],
+        "openingBalance": "number",
+        "quarterIncome": "number",
+        "undatedIncome": "number"
+      },
+      "monthly": [
+        {
+          "amount": "number",
+          "month": "string"
+        }
+      ],
+      "stats": {
+        "expected": "number",
+        "invoices": "number",
+        "paid": "number",
+        "total": "number"
+      }
+    }
+  },
+  {
+    "method": "get",
+    "path": "/api/invoices",
+    "status": 200,
+    "body": [
+      {
+        "amount": "number",
+        "client": "string",
+        "created_at": "string",
+        "due_date": "string",
+        "id": "number",
+        "paid_at": "string|null",
+        "status": "string",
+        "title": "string"
+      }
+    ]
+  },
+  {
+    "method": "get",
+    "path": "/api/transactions",
+    "status": 200,
+    "body": [
+      {
+        "amount_cents": "number",
+        "category": "string",
+        "created_at": "string",
+        "description": "string",
+        "external_id": "string",
+        "id": "number",
+        "kind": "string",
+        "occurred_on": "string"
+      }
+    ]
+  },
+  {
+    "method": "post",
+    "path": "/api/invoices",
+    "status": 201,
+    "body": {
+      "amount": "number",
+      "client": "string",
+      "dueDate": "string",
+      "id": "number",
+      "status": "string",
+      "title": "string"
+    }
+  },
+  {
+    "method": "post",
+    "path": "/api/invoices",
+    "status": 400,
+    "body": {
+      "message": "string"
+    }
+  }
+]
