@@ -1,44 +1,139 @@
-import {z} from 'zod';
-export const moneyValue=z.number().finite().positive().max(1e9).refine(value=>Math.abs(value*100-Math.round(value*100))<1e-6,'Не более двух знаков после запятой');
-export const dateValue=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>Number.isFinite(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v,'Некорректная дата');
-export const transactionSchema=z.object({kind:z.enum(['income','expense']),amount:moneyValue,date:dateValue,category:z.string().trim().min(1).max(80),description:z.string().max(500).default('')}).strict();
-export const cents=value=>Math.round(value*100);
-export function cashSummary(db,now=new Date()){
- const today=now.toISOString().slice(0,10),quarter=today.slice(0,5)+String(Math.floor(now.getUTCMonth()/3)*3+1).padStart(2,'0')+'-01';
- const monthKeys=Array.from({length:6},(_,i)=>new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-5+i,1)).toISOString().slice(0,7));
- const payments=db.prepare("SELECT paid_at date,CAST(ROUND(amount*100) AS INTEGER) amount_cents,'income' kind FROM invoices WHERE status='paid'").all();
- const transactions=db.prepare('SELECT occurred_on date,amount_cents,kind FROM transactions').all(),rows=[...payments,...transactions].filter(r=>!r.date||r.date<=today);
- const income=rows.filter(r=>r.kind==='income').reduce((a,r)=>a+r.amount_cents,0),expenses=rows.filter(r=>r.kind==='expense').reduce((a,r)=>a+r.amount_cents,0);
- const opening=Number(db.prepare("SELECT value FROM settings WHERE key='opening_balance_cents'").get().value),goal=Number(db.prepare("SELECT value FROM settings WHERE key='goal_cents'").get().value);
- const quarterIncome=rows.filter(r=>r.kind==='income'&&r.date>=quarter&&r.date<=today).reduce((a,r)=>a+r.amount_cents,0);
- const monthly=monthKeys.map(month=>({month,income:rows.filter(r=>r.kind==='income'&&r.date?.startsWith(month)).reduce((a,r)=>a+r.amount_cents,0)/100,expenses:rows.filter(r=>r.kind==='expense'&&r.date?.startsWith(month)).reduce((a,r)=>a+r.amount_cents,0)/100}));
- const current=monthly.at(-1).income,previous=monthly.at(-2).income,growth=previous?Math.round((current-previous)/previous*1000)/10:null;
- return {income:income/100,expenses:expenses/100,balance:(opening+income-expenses)/100,openingBalance:opening/100,goal:goal/100,quarterIncome:quarterIncome/100,goalPercent:Math.min(100,Math.round(quarterIncome/goal*100)),goalRemaining:Math.max(0,goal-quarterIncome)/100,growth,monthly,undatedIncome:payments.filter(r=>!r.date).reduce((a,r)=>a+r.amount_cents,0)/100};
+import { MAX_ENTRY_CENTS, MoneyRangeError, moneyNumber } from './money.js';
+export { moneyValue, dateValue, transactionSchema, cents } from './money.js';
+export { parseCsv, exportCsv, importedRows } from './csv.js';
+
+export function calculateCash(rows, { opening = 0n, goal = 100000000n } = {}, now = new Date()) {
+  opening = BigInt(opening);
+  goal = BigInt(goal);
+  if (
+    goal <= 0n ||
+    goal > MAX_ENTRY_CENTS ||
+    opening > MAX_ENTRY_CENTS ||
+    opening < -MAX_ENTRY_CENTS
+  )
+    throw new MoneyRangeError();
+  const today = now.toISOString().slice(0, 10);
+  const quarter =
+    today.slice(0, 5) + String(Math.floor(now.getUTCMonth() / 3) * 3 + 1).padStart(2, '0') + '-01';
+  const buckets = new Map(
+    Array.from({ length: 6 }, (_, index) => [
+      new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 5 + index, 1))
+        .toISOString()
+        .slice(0, 7),
+      { income: 0n, expenses: 0n },
+    ]),
+  );
+  let income = 0n,
+    expenses = 0n,
+    quarterIncome = 0n,
+    undatedIncome = 0n;
+  let allIncome = 0n,
+    allExpenses = 0n;
+  for (const row of rows) {
+    const amount = BigInt(row.amount_cents);
+    if (amount <= 0n || amount > MAX_ENTRY_CENTS || !['income', 'expense'].includes(row.kind))
+      throw new MoneyRangeError();
+    if (row.kind === 'income') allIncome += amount;
+    else allExpenses += amount;
+    if (row.date && row.date > today) continue;
+    const isIncome = row.kind === 'income';
+    if (isIncome) {
+      income += amount;
+      if (!row.date) undatedIncome += amount;
+      else if (row.date >= quarter) quarterIncome += amount;
+    } else expenses += amount;
+    const bucket = buckets.get(row.date?.slice(0, 7));
+    if (bucket) {
+      if (isIncome) bucket.income += amount;
+      else bucket.expenses += amount;
+    }
+  }
+  // Include future entries in range validation so a date change cannot overflow the cash API.
+  moneyNumber(allIncome);
+  moneyNumber(allExpenses);
+  moneyNumber(opening + allIncome);
+  moneyNumber(opening - allExpenses);
+  const monthly = Array.from(buckets, ([month, totals]) => ({
+    month,
+    income: moneyNumber(totals.income),
+    expenses: moneyNumber(totals.expenses),
+  }));
+  const current = monthly.at(-1).income,
+    previous = monthly.at(-2).income;
+  return {
+    income: moneyNumber(income),
+    expenses: moneyNumber(expenses),
+    balance: moneyNumber(opening + income - expenses),
+    openingBalance: moneyNumber(opening),
+    goal: moneyNumber(goal),
+    quarterIncome: moneyNumber(quarterIncome),
+    goalPercent: Number(quarterIncome >= goal ? 100n : (quarterIncome * 100n + goal / 2n) / goal),
+    goalRemaining: moneyNumber(quarterIncome >= goal ? 0n : goal - quarterIncome),
+    growth: previous ? Math.round(((current - previous) / previous) * 1000) / 10 : null,
+    monthly,
+    undatedIncome: moneyNumber(undatedIncome),
+  };
 }
-export function parseCsv(text){
- if(text.length>200000)throw new Error('CSV превышает 200 000 символов');
- text=text.replace(/^\uFEFF/,'');const rows=[];let row=[],cell='',quoted=false,closed=false;
- const pushCell=()=>{row.push(cell);cell='';closed=false;if(row.length>6)throw new Error('Слишком много колонок');};
- const pushRow=()=>{pushCell();if(row.some(v=>v!==''))rows.push(row);row=[];if(rows.length>1001)throw new Error('Максимум 1000 операций');};
- for(let i=0;i<text.length;i++){
-  const c=text[i];
-  if(quoted){if(c==='"'){if(text[i+1]==='"'){cell+='"';i++;}else{quoted=false;closed=true;}}else cell+=c;continue;}
-  if(closed&&c!==','&&c!=='\r'&&c!=='\n')throw new Error('Символ после закрывающей кавычки');
-  if(c==='"'){if(cell)throw new Error('Некорректные кавычки');quoted=true;}
-  else if(c===',')pushCell();else if(c==='\r'||c==='\n'){if(c==='\r'&&text[i+1]==='\n')i++;pushRow();}else cell+=c;
- }
- if(quoted)throw new Error('Незакрытая кавычка');if(cell||row.length||closed)pushRow();return rows;
+
+export function cashSummary(db, now = new Date()) {
+  const paymentQuery = db.prepare(
+    "SELECT paid_at date,amount_cents,'income' kind FROM invoices WHERE status='paid'",
+  );
+  paymentQuery.setReadBigInts(true);
+  const transactionQuery = db.prepare(
+    'SELECT occurred_on date,amount_cents,kind FROM transactions WHERE deleted_at IS NULL',
+  );
+  transactionQuery.setReadBigInts(true);
+  const settingQuery = db.prepare('SELECT key,value FROM settings');
+  settingQuery.setReadBigInts(true);
+  const settings = Object.fromEntries(settingQuery.all().map((row) => [row.key, row.value]));
+  return calculateCash(
+    [...paymentQuery.all(), ...transactionQuery.all()],
+    { opening: settings.opening_balance_cents, goal: settings.goal_cents },
+    now,
+  );
 }
-const safeCell=value=>{let s=String(value??'');if(/^[=+\-@'\s]/u.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
-export function exportCsv(rows){return ['id,kind,amount,date,category,description',...rows.map(r=>[r.external_id,r.kind,(r.amount_cents/100).toFixed(2),r.occurred_on,r.category,r.description].map(safeCell).join(','))].join('\r\n')+'\r\n';}
-export function importedRows(csv){
- const [header,...rows]=parseCsv(csv);const columns=['id','kind','amount','date','category','description'];
- if(!header||header.join(',')!==columns.join(','))throw new Error('Ожидаются колонки id,kind,amount,date,category,description');
- return rows.map(values=>{
-  if(values.length!==columns.length)throw new Error('Неверное число колонок');const [id,kind,amount,date,category,description]=values;
-  if(id&&!z.string().uuid().safeParse(id).success)throw new Error('Некорректный id операции');
-  if(!/^\d+(?:\.\d{1,2})?$/.test(amount))throw new Error('Сумма должна быть положительной, с точкой и не более двух десятичных знаков');
-  const literal=v=>v.startsWith("'")?v.slice(1):v;
-  return {id,...transactionSchema.parse({kind,amount:Number(amount),date,category:literal(category),description:literal(description)})};
- });
+
+export function invoiceSummary(db) {
+  const query = db.prepare('SELECT amount_cents,status,substr(created_at,1,7) month FROM invoices');
+  query.setReadBigInts(true);
+  const invoices = query.all(),
+    months = new Map();
+  let total = 0n,
+    paid = 0n,
+    expected = 0n;
+  for (const invoice of invoices) {
+    const amount = BigInt(invoice.amount_cents);
+    if (amount <= 0n || amount > MAX_ENTRY_CENTS) throw new MoneyRangeError();
+    total += amount;
+    if (invoice.status === 'paid') paid += amount;
+    if (['sent', 'overdue'].includes(invoice.status)) expected += amount;
+    months.set(invoice.month, (months.get(invoice.month) || 0n) + amount);
+  }
+  return {
+    stats: {
+      total: moneyNumber(total),
+      paid: moneyNumber(paid),
+      expected: moneyNumber(expected),
+      invoices: invoices.length,
+    },
+    monthly: Array.from(months, ([month, amount]) => ({ month, amount: moneyNumber(amount) })).sort(
+      (a, b) => a.month.localeCompare(b.month),
+    ),
+  };
+}
+
+export function writeCashChange(db, change) {
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = change();
+    // Keep the API's monetary range invariant in the same write transaction as every balance-changing mutation.
+    invoiceSummary(db);
+    cashSummary(db);
+    db.exec('COMMIT');
+    return result;
+  } catch (error) {
+    if (db.isTransaction) db.exec('ROLLBACK');
+    throw error;
+  }
 }

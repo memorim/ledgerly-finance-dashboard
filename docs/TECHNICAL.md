@@ -1,3 +1,5 @@
+> Historical note: current monetary storage, edit/delete and concurrency behaviour is documented in [MONEY_MODEL.md](MONEY_MODEL.md) and the root README.
+
 # Ledgerly — финансовый кабинет и счета
 
 Финансовый кабинет для небольших команд и самостоятельных специалистов. Показывает выручку, ожидаемые платежи, динамику и состояние выставленных счетов.

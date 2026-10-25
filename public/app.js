@@ -1,22 +1,308 @@
-const loadFeedback=document.createElement('p');loadFeedback.className='load-feedback';loadFeedback.setAttribute('role','status');loadFeedback.style.cssText='position:fixed;bottom:16px;left:16px;right:16px;z-index:9999;background:#fff8dd;color:#222;padding:12px 20px;margin:0;font:14px/1.5 system-ui;border-radius:8px';document.querySelector('main').prepend(loadFeedback);let lastLoadArgs=[];
-async function load(...args){lastLoadArgs=args;loadFeedback.hidden=false;loadFeedback.textContent='Загрузка данных…';try{await loadData(...args);loadFeedback.textContent='';loadFeedback.hidden=true;}catch(error){loadFeedback.textContent='Не удалось загрузить данные. ';const retry=document.createElement('button');retry.type='button';retry.textContent='Повторить загрузку';retry.onclick=()=>load(...lastLoadArgs);loadFeedback.append(retry);}}
-const escapeText=v=>String(v).replace(/[&<>"\']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;", "\'":"&#39;"}[c]));
-const money=v=>`${new Intl.NumberFormat('ru-RU').format(v)} ₽`;const labels={paid:'Оплачен',sent:'Отправлен',overdue:'Просрочен',draft:'Черновик'};let status='all';async function loadData(){
- const [summary,invoices,transactions]=await Promise.all([fetch('/api/summary'),fetch(`/api/invoices?status=${status}`),fetch('/api/transactions')].map(async response=>{const r=await response;if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}));
- const cash=summary.cash;document.querySelector('#total').textContent=money(cash.income);document.querySelector('#paid').textContent=money(cash.expenses);document.querySelector('#expected').textContent=money(summary.stats.expected||0);document.querySelector('#cash-balance').textContent=money(cash.balance);document.querySelector('#balance-note').textContent='Начальный остаток: '+money(cash.openingBalance);
- document.querySelector('#period-label').textContent=new Date().toLocaleDateString('ru-RU',{month:'long',year:'numeric'});document.querySelector('#growth').textContent=cash.growth===null?'Нет базы для сравнения':(cash.growth>0?'+':'')+cash.growth+'% к прошлому месяцу';
- document.querySelector('#goal-amount').textContent=money(cash.goal);document.querySelector('#goal-percent').textContent=cash.goalPercent+'%';document.querySelector('#goal-ring').style.background=`conic-gradient(#8a9a77 ${cash.goalPercent}%,#eee 0)`;document.querySelector('#goal-remaining').textContent='Осталось '+money(cash.goalRemaining);
- const form=document.querySelector('#settings-form');if(!form.contains(document.activeElement)){form.elements.goalAmount.value=cash.goal;form.elements.openingBalance.value=cash.openingBalance;}
- const max=Math.max(1,...cash.monthly.flatMap(m=>[m.income,m.expenses]));document.querySelector('#chart-axis').innerHTML=[1,.75,.5,.25,0].map(r=>'<span>'+new Intl.NumberFormat('ru-RU',{notation:'compact'}).format(max*r)+'</span>').join('');document.querySelector('#cash-bars').innerHTML=cash.monthly.map(m=>`<div class="bar-month" title="${escapeText(m.month)}: доходы ${money(m.income)}, расходы ${money(m.expenses)}"><i style="--h:${m.income/max*100}%"></i><i class="expense" style="--h:${m.expenses/max*100}%"></i></div>`).join('');document.querySelector('#cash-bars').setAttribute('aria-label',cash.monthly.map(m=>m.month+': доходы '+money(m.income)+', расходы '+money(m.expenses)).join('; '));document.querySelector('#cash-months').innerHTML=cash.monthly.map(m=>'<span>'+new Date(m.month+'-15').toLocaleDateString('ru-RU',{month:'short'})+'</span>').join('');
- document.querySelector('#invoice-list').innerHTML=invoices.map(i=>`<div class="tr"><span class="client"><i>${escapeText(i.client[0])}</i><span><b>${escapeText(i.client)}</b><small>${escapeText(i.title)}</small></span></span><b>${money(i.amount)}</b><span>${new Date(i.due_date).toLocaleDateString('ru-RU',{day:'numeric',month:'short'})}</span><span class="badge badge-${i.status}">${labels[i.status]}</span><span></span></div>`).join('');
- document.querySelector('#transaction-list').innerHTML=transactions.length?transactions.map(t=>`<article class="cash-row"><span><b>${escapeText(t.category)}</b><small>${escapeText(t.description)}</small></span><time>${escapeText(t.occurred_on)}</time><strong>${t.kind==='expense'?'−':'+'}${money(t.amount_cents/100)}</strong></article>`).join(''):'<p>Добавьте первую операцию.</p>';
- if(cash.undatedIncome){document.querySelector('#balance-note').textContent+=' · Поступления без даты: '+money(cash.undatedIncome);}
+const loadFeedback = document.createElement('p');
+loadFeedback.className = 'load-feedback';
+loadFeedback.setAttribute('role', 'status');
+loadFeedback.style.cssText =
+  'position:fixed;bottom:16px;left:16px;right:16px;z-index:9999;background:#fff8dd;color:#222;padding:12px 20px;margin:0;font:14px/1.5 system-ui;border-radius:8px';
+document.querySelector('main').prepend(loadFeedback);
+let lastLoadArgs = [];
+async function load(...args) {
+  lastLoadArgs = args;
+  loadFeedback.hidden = false;
+  loadFeedback.textContent = 'Загрузка данных…';
+  try {
+    await loadData(...args);
+    loadFeedback.textContent = '';
+    loadFeedback.hidden = true;
+  } catch (error) {
+    loadFeedback.textContent = 'Не удалось загрузить данные. ';
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.textContent = 'Повторить загрузку';
+    retry.onclick = () => load(...lastLoadArgs);
+    loadFeedback.append(retry);
+  }
 }
-document.querySelectorAll('[data-status]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-status]').forEach(x=>x.classList.remove('active'));b.classList.add('active');status=b.dataset.status;load()});const dialog=document.querySelector('dialog');document.querySelector('[name=dueDate]').value=new Date(Date.now()+7*86400000).toISOString().slice(0,10);document.querySelector('.new').onclick=()=>dialog.showModal();document.querySelector('.close').onclick=()=>dialog.close();document.querySelector('#invoice-form').onsubmit=async e=>{e.preventDefault();const d=new FormData(e.target);const response=await fetch('/api/invoices',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client:d.get('client'),title:d.get('title'),amount:Number(d.get('amount')),dueDate:d.get('dueDate'),status:'sent'})});if(!response.ok){const error=await response.json();window.alert(error.message||'Не удалось сохранить счёт');return}dialog.close();e.target.reset();load()};load();
+const escapeText = (v) =>
+  String(v).replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
+  );
+const money = (v) => `${new Intl.NumberFormat('ru-RU').format(v)} ₽`;
+const labels = { paid: 'Оплачен', sent: 'Отправлен', overdue: 'Просрочен', draft: 'Черновик' };
+let status = 'all';
+let currentTransactions = [];
+let editingTransaction = null;
+async function loadData() {
+  const [summary, invoices, transactions] = await Promise.all(
+    [
+      fetch('/api/summary'),
+      fetch(`/api/invoices?status=${status}`),
+      fetch('/api/transactions'),
+    ].map(async (response) => {
+      const r = await response;
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }),
+  );
+  const cash = summary.cash;
+  document.querySelector('#total').textContent = money(cash.income);
+  document.querySelector('#paid').textContent = money(cash.expenses);
+  document.querySelector('#expected').textContent = money(summary.stats.expected || 0);
+  document.querySelector('#cash-balance').textContent = money(cash.balance);
+  document.querySelector('#balance-note').textContent =
+    'Начальный остаток: ' + money(cash.openingBalance);
+  document.querySelector('#period-label').textContent = new Date().toLocaleDateString('ru-RU', {
+    month: 'long',
+    year: 'numeric',
+  });
+  document.querySelector('#growth').textContent =
+    cash.growth === null
+      ? 'Нет базы для сравнения'
+      : (cash.growth > 0 ? '+' : '') + cash.growth + '% к прошлому месяцу';
+  document.querySelector('#goal-amount').textContent = money(cash.goal);
+  document.querySelector('#goal-percent').textContent = cash.goalPercent + '%';
+  document.querySelector('#goal-ring').style.background =
+    `conic-gradient(#8a9a77 ${cash.goalPercent}%,#eee 0)`;
+  document.querySelector('#goal-remaining').textContent = 'Осталось ' + money(cash.goalRemaining);
+  const form = document.querySelector('#settings-form');
+  if (!form.contains(document.activeElement)) {
+    form.elements.goalAmount.value = cash.goal;
+    form.elements.openingBalance.value = cash.openingBalance;
+  }
+  const max = Math.max(1, ...cash.monthly.flatMap((m) => [m.income, m.expenses]));
+  document.querySelector('#chart-axis').innerHTML = [1, 0.75, 0.5, 0.25, 0]
+    .map(
+      (r) =>
+        '<span>' +
+        new Intl.NumberFormat('ru-RU', { notation: 'compact' }).format(max * r) +
+        '</span>',
+    )
+    .join('');
+  document.querySelector('#cash-bars').innerHTML = cash.monthly
+    .map(
+      (m) =>
+        `<div class="bar-month" title="${escapeText(m.month)}: доходы ${money(m.income)}, расходы ${money(m.expenses)}"><i style="--h:${(m.income / max) * 100}%"></i><i class="expense" style="--h:${(m.expenses / max) * 100}%"></i></div>`,
+    )
+    .join('');
+  document
+    .querySelector('#cash-bars')
+    .setAttribute(
+      'aria-label',
+      cash.monthly
+        .map((m) => m.month + ': доходы ' + money(m.income) + ', расходы ' + money(m.expenses))
+        .join('; '),
+    );
+  document.querySelector('#cash-months').innerHTML = cash.monthly
+    .map(
+      (m) =>
+        '<span>' +
+        new Date(m.month + '-15').toLocaleDateString('ru-RU', { month: 'short' }) +
+        '</span>',
+    )
+    .join('');
+  document.querySelector('#invoice-list').innerHTML = invoices
+    .map(
+      (i) =>
+        `<div class="tr"><span class="client"><i>${escapeText(i.client[0])}</i><span><b>${escapeText(i.client)}</b><small>${escapeText(i.title)}</small></span></span><b>${money(i.amount)}</b><span>${new Date(i.due_date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}</span><span class="badge badge-${i.status}">${labels[i.status]}</span><span></span></div>`,
+    )
+    .join('');
+  document.querySelector('#transaction-list').innerHTML = transactions.length
+    ? transactions
+        .map(
+          (t) =>
+            `<article class="cash-row"><span><b>${escapeText(t.category)}</b><small>${escapeText(t.description)}</small></span><time>${escapeText(t.occurred_on)}</time><strong>${t.kind === 'expense' ? '−' : '+'}${money(t.amount_cents / 100)}</strong><div class="cash-actions"><button data-edit="${escapeText(t.external_id)}" aria-label="Изменить операцию ${escapeText(t.category)}">Изменить</button><button data-delete="${escapeText(t.external_id)}" aria-label="Удалить операцию ${escapeText(t.category)}">Удалить</button></div></article>`,
+        )
+        .join('')
+    : '<p>Добавьте первую операцию.</p>';
+  currentTransactions = transactions;
+  if (cash.undatedIncome) {
+    document.querySelector('#balance-note').textContent +=
+      ' · Поступления без даты: ' + money(cash.undatedIncome);
+  }
+}
+document.querySelectorAll('[data-status]').forEach(
+  (b) =>
+    (b.onclick = () => {
+      document.querySelectorAll('[data-status]').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      status = b.dataset.status;
+      load();
+    }),
+);
+const dialog = document.querySelector('dialog');
+document.querySelector('[name=dueDate]').value = new Date(Date.now() + 7 * 86400000)
+  .toISOString()
+  .slice(0, 10);
+document.querySelector('.new').onclick = () => dialog.showModal();
+document.querySelector('.close').onclick = () => dialog.close();
+document.querySelector('#invoice-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const d = new FormData(e.target);
+  const response = await fetch('/api/invoices', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client: d.get('client'),
+      title: d.get('title'),
+      amount: Number(d.get('amount')),
+      dueDate: d.get('dueDate'),
+      status: 'sent',
+    }),
+  });
+  if (!response.ok) {
+    const error = await response.json();
+    window.alert(error.message || 'Не удалось сохранить счёт');
+    return;
+  }
+  dialog.close();
+  e.target.reset();
+  load();
+};
+load();
 
-const transactionDialog=document.querySelector('#transaction-dialog');document.querySelector('#add-transaction').onclick=()=>{document.querySelector('#transaction-form [name=date]').value=new Date().toISOString().slice(0,10);transactionDialog.showModal();};document.querySelector('.transaction-close').onclick=()=>transactionDialog.close();
-document.querySelector('#transaction-form').onsubmit=async e=>{e.preventDefault();const form=e.currentTarget,d=new FormData(form);const response=await fetch('/api/transactions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:d.get('kind'),amount:Number(d.get('amount')),date:d.get('date'),category:d.get('category'),description:d.get('description')})});if(!response.ok)throw new Error((await response.json()).message);transactionDialog.close();form.reset();await load();};
-document.querySelector('#settings-form').onsubmit=async e=>{e.preventDefault();const d=new FormData(e.currentTarget);const response=await fetch('/api/settings',{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({goalAmount:Number(d.get('goalAmount')),openingBalance:Number(d.get('openingBalance'))})});if(!response.ok)throw new Error((await response.json()).message);document.querySelector('#settings-result').textContent='Настройки сохранены';await load();};
-document.querySelector('#import-csv').onclick=()=>document.querySelector('#csv-file').click();document.querySelector('#csv-file').onchange=async e=>{const file=e.target.files[0];if(!file)return;const result=document.querySelector('#csv-result');try{if(file.size>250000)throw new Error('Максимальный размер CSV — 250 КБ');const response=await fetch('/api/transactions/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csv:await file.text()})});const body=await response.json();if(!response.ok)throw new Error(body.message);result.textContent=body.replayed?'Этот файл уже обработан. Повторные операции не добавлены.':'Добавлено операций: '+body.added;await load();}catch(error){result.textContent=error.message;}finally{e.target.value='';}};
+const transactionDialog = document.querySelector('#transaction-dialog');
+document.querySelector('#add-transaction').onclick = () => {
+  if (editingTransaction) document.querySelector('#transaction-form').reset();
+  editingTransaction = null;
+  transactionDialog.querySelector('h2').textContent = 'Новая операция';
+  document.querySelector('#transaction-form [name=date]').value = new Date()
+    .toISOString()
+    .slice(0, 10);
+  transactionDialog.showModal();
+};
+document.querySelector('.transaction-close').onclick = () => transactionDialog.close();
+document.querySelector('#transaction-list').onclick = async (event) => {
+  const button = event.target.closest('button[data-edit],button[data-delete]');
+  if (!button) return;
+  const transaction = currentTransactions.find(
+    (row) => row.external_id === (button.dataset.edit || button.dataset.delete),
+  );
+  if (!transaction) return;
+  const feedback = document.querySelector('#transaction-result');
+  feedback.textContent = '';
+  if (button.dataset.edit) {
+    editingTransaction = transaction;
+    const form = document.querySelector('#transaction-form');
+    for (const [name, value] of Object.entries({
+      kind: transaction.kind,
+      amount: transaction.amount_cents / 100,
+      date: transaction.occurred_on,
+      category: transaction.category,
+      description: transaction.description,
+    }))
+      form.elements.namedItem(name).value = String(value);
+    form.querySelector('[role=alert]')?.remove();
+    transactionDialog.querySelector('h2').textContent = 'Изменить операцию';
+    transactionDialog.showModal();
+    return;
+  }
+  if (!window.confirm('Удалить операцию «' + transaction.category + '» из расчётов?')) return;
+  button.disabled = true;
+  try {
+    const response = await fetch(
+      '/api/transactions/' + encodeURIComponent(transaction.external_id),
+      {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ version: transaction.version }),
+      },
+    );
+    if (!response.ok) throw new Error((await response.json()).message);
+    await load();
+  } catch (error) {
+    feedback.textContent = error instanceof Error ? error.message : 'Не удалось удалить операцию';
+  } finally {
+    button.disabled = false;
+  }
+};
+document.querySelector('#transaction-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const form = e.currentTarget,
+    d = new FormData(form);
+  const response = await fetch(
+    '/api/transactions' +
+      (editingTransaction ? '/' + encodeURIComponent(editingTransaction.external_id) : ''),
+    {
+      method: editingTransaction ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kind: d.get('kind'),
+        amount: Number(d.get('amount')),
+        date: d.get('date'),
+        category: d.get('category'),
+        description: d.get('description'),
+        ...(editingTransaction ? { version: editingTransaction.version } : {}),
+      }),
+    },
+  );
+  if (!response.ok) throw new Error((await response.json()).message);
+  transactionDialog.close();
+  editingTransaction = null;
+  form.reset();
+  await load();
+};
+document.querySelector('#settings-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const d = new FormData(e.currentTarget);
+  const response = await fetch('/api/settings', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      goalAmount: Number(d.get('goalAmount')),
+      openingBalance: Number(d.get('openingBalance')),
+    }),
+  });
+  if (!response.ok) throw new Error((await response.json()).message);
+  document.querySelector('#settings-result').textContent = 'Настройки сохранены';
+  await load();
+};
+document.querySelector('#import-csv').onclick = () => document.querySelector('#csv-file').click();
+document.querySelector('#csv-file').onchange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const result = document.querySelector('#csv-result');
+  try {
+    if (file.size > 250000) throw new Error('Максимальный размер CSV — 250 КБ');
+    const response = await fetch('/api/transactions/import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ csv: await file.text() }),
+    });
+    const body = await response.json();
+    if (!response.ok) throw new Error(body.message);
+    result.textContent = body.replayed
+      ? 'Этот файл уже обработан. Повторные операции не добавлены.'
+      : 'Добавлено операций: ' + body.added;
+    await load();
+  } catch (error) {
+    result.textContent = error.message;
+  } finally {
+    e.target.value = '';
+  }
+};
 
-for(const form of document.querySelectorAll('form')){const submit=form.onsubmit;if(!submit)continue;form.onsubmit=async event=>{event.preventDefault();const button=form.querySelector('button[type=submit],button.send,button:not([type])');if(button)button.disabled=true;try{await submit(event);}catch{let message=form.querySelector('[role=alert]');if(!message){message=document.createElement('p');message.setAttribute('role','alert');form.append(message);}message.textContent='Не удалось выполнить запрос. Повторите действие; введённые данные остаются в форме.';}finally{if(button)button.disabled=false;}};}
+for (const form of document.querySelectorAll('form')) {
+  const submit = form.onsubmit;
+  if (!submit) continue;
+  form.onsubmit = async (event) => {
+    event.preventDefault();
+    const button = form.querySelector('button[type=submit],button.send,button:not([type])');
+    if (button) button.disabled = true;
+    try {
+      await submit(event);
+    } catch (error) {
+      let message = form.querySelector('[role=alert]');
+      if (!message) {
+        message = document.createElement('p');
+        message.setAttribute('role', 'alert');
+        form.append(message);
+      }
+      message.textContent =
+        'Не удалось выполнить запрос. ' +
+        (error instanceof Error && !(error instanceof TypeError) ? error.message + ' ' : '') +
+        'Введённые данные остаются в форме.';
+    } finally {
+      if (button) button.disabled = false;
+    }
+  };
+}
