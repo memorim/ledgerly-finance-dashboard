@@ -1,3 +1,12 @@
+# Changes
+
+## Unreleased — monetary integrity and operation lifecycle
+
+- Canonical invoice minor units, BigInt summaries, checked future/aggregate limits and transactional migration.
+- Versioned transaction edits and retained soft deletion, including mobile browser controls.
+- Serialize CSV replay lookup with writes across independent HTTP servers.
+- Explicit local Host/origin boundary, regression checks, ESLint/Prettier CI gates.
+
 # Изменения
 
 ## 1.1.0 — 2026-10-24
