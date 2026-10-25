@@ -87,3 +87,5 @@ CI installs locked dependencies, runs lint/format, unit/API, contract, upgrade a
 [Audit findings and follow-up](docs/AUDIT_2026_10.md) · [Technical reference](docs/TECHNICAL.md) · [Change history](CHANGELOG.md)
 
 [API request/response example](docs/API_EXAMPLE.md)
+
+[Revision and deployment checks](docs/DEPLOYMENT_CHECKS.md) — read-only `pnpm smoke` verifies a running Node API and an optional expected source SHA.
