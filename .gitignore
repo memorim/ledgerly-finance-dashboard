@@ -9,3 +9,4 @@ test-results/
 playwright-report/
 
 .upgrade-test-*/
+_site/

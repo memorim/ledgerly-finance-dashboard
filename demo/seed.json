@@ -1,0 +1,267 @@
+{
+  "/api/summary": {
+    "stats": {
+      "total": 718500,
+      "paid": 145000,
+      "expected": 501500,
+      "invoices": 5
+    },
+    "monthly": [
+      {
+        "month": "2026-06",
+        "amount": 646500
+      },
+      {
+        "month": "2026-07",
+        "amount": 72000
+      }
+    ],
+    "cash": {
+      "income": 460000,
+      "expenses": 87000,
+      "balance": 373000,
+      "openingBalance": 0,
+      "goal": 1000000,
+      "quarterIncome": 40000,
+      "goalPercent": 4,
+      "goalRemaining": 960000,
+      "growth": -11.1,
+      "monthly": [
+        {
+          "month": "2026-05",
+          "income": 65000,
+          "expenses": 17000
+        },
+        {
+          "month": "2026-06",
+          "income": 205000,
+          "expenses": 16000
+        },
+        {
+          "month": "2026-07",
+          "income": 55000,
+          "expenses": 15000
+        },
+        {
+          "month": "2026-08",
+          "income": 50000,
+          "expenses": 14000
+        },
+        {
+          "month": "2026-09",
+          "income": 45000,
+          "expenses": 13000
+        },
+        {
+          "month": "2026-10",
+          "income": 40000,
+          "expenses": 12000
+        }
+      ],
+      "undatedIncome": 0
+    }
+  },
+  "/api/invoices": [
+    {
+      "id": 3,
+      "client": "Forma Group",
+      "title": "Интеграция CRM",
+      "amount": 96000,
+      "due_date": "2026-07-03",
+      "status": "overdue",
+      "created_at": "2026-06-12",
+      "paid_at": null,
+      "amount_cents": 9600000
+    },
+    {
+      "id": 1,
+      "client": "Morrow Studio",
+      "title": "Разработка лендинга",
+      "amount": 145000,
+      "due_date": "2026-07-09",
+      "status": "paid",
+      "created_at": "2026-06-18",
+      "paid_at": "2026-06-20",
+      "amount_cents": 14500000
+    },
+    {
+      "id": 2,
+      "client": "Nova Labs",
+      "title": "Дизайн-система продукта",
+      "amount": 218000,
+      "due_date": "2026-07-12",
+      "status": "sent",
+      "created_at": "2026-06-24",
+      "paid_at": null,
+      "amount_cents": 21800000
+    },
+    {
+      "id": 5,
+      "client": "Arka Bureau",
+      "title": "Корпоративный сайт",
+      "amount": 187500,
+      "due_date": "2026-07-17",
+      "status": "sent",
+      "created_at": "2026-06-29",
+      "paid_at": null,
+      "amount_cents": 18750000
+    },
+    {
+      "id": 4,
+      "client": "Locus Travel",
+      "title": "Поддержка платформы",
+      "amount": 72000,
+      "due_date": "2026-07-21",
+      "status": "draft",
+      "created_at": "2026-07-02",
+      "paid_at": null,
+      "amount_cents": 7200000
+    }
+  ],
+  "/api/transactions": [
+    {
+      "id": 12,
+      "external_id": "6c2677fa-4425-44ca-867b-025af9d2db84",
+      "kind": "expense",
+      "amount_cents": 1200000,
+      "occurred_on": "2026-10-05",
+      "category": "Инструменты",
+      "description": "Расходы на инструменты",
+      "created_at": "2026-10-26T17:01:18.681Z",
+      "version": 1,
+      "deleted_at": null
+    },
+    {
+      "id": 11,
+      "external_id": "997efdc3-2616-44c8-aebe-5b3bf60c4910",
+      "kind": "income",
+      "amount_cents": 4000000,
+      "occurred_on": "2026-10-05",
+      "category": "Проекты",
+      "description": "Поступление по проекту",
+      "created_at": "2026-10-26T17:01:18.681Z",
+      "version": 1,
+      "deleted_at": null
+    },
+    {
+      "id": 10,
+      "external_id": "38860c76-4326-4717-b735-139fb35cfc01",
+      "kind": "expense",
+      "amount_cents": 1300000,
+      "occurred_on": "2026-09-05",
+      "category": "Инструменты",
+      "description": "Расходы на инструменты",
+      "created_at": "2026-10-26T17:01:18.681Z",
+      "version": 1,
+      "deleted_at": null
+    },
+    {
+      "id": 9,
+      "external_id": "476407dc-107d-4e9c-8f31-f3f3dcbef231",
+      "kind": "income",
+      "amount_cents": 4500000,
+      "occurred_on": "2026-09-05",
+      "category": "Проекты",
+      "description": "Поступление по проекту",
+      "created_at": "2026-10-26T17:01:18.681Z",
+      "version": 1,
+      "deleted_at": null
+    },
+    {
+      "id": 8,
+      "external_id": "11e646cc-f255-4201-bb03-b48e09a2531c",
+      "kind": "expense",
+      "amount_cents": 1400000,
+      "occurred_on": "2026-08-05",
+      "category": "Инструменты",
+      "description": "Расходы на инструменты",
+      "created_at": "2026-10-26T17:01:18.681Z",
+      "version": 1,
+      "deleted_at": null
+    },
+    {
+      "id": 7,
+      "external_id": "1f48be7c-2e85-43b0-b85a-209a83bcc6df",
+      "kind": "income",
+      "amount_cents": 5000000,
+      "occurred_on": "2026-08-05",
+      "category": "Проекты",
+      "description": "Поступление по проекту",
+      "created_at": "2026-10-26T17:01:18.681Z",
+      "version": 1,
+      "deleted_at": null
+    },
+    {
+      "id": 6,
+      "external_id": "c535af6a-8a79-4b5c-9618-55805e5c5613",
+      "kind": "expense",
+      "amount_cents": 1500000,
+      "occurred_on": "2026-07-05",
+      "category": "Инструменты",
+      "description": "Расходы на инструменты",
+      "created_at": "2026-10-26T17:01:18.681Z",
+      "version": 1,
+      "deleted_at": null
+    },
+    {
+      "id": 5,
+      "external_id": "c7ed1c34-a067-4fbe-80c1-f946c48cf974",
+      "kind": "income",
+      "amount_cents": 5500000,
+      "occurred_on": "2026-07-05",
+      "category": "Проекты",
+      "description": "Поступление по проекту",
+      "created_at": "2026-10-26T17:01:18.680Z",
+      "version": 1,
+      "deleted_at": null
+    },
+    {
+      "id": 4,
+      "external_id": "d666cb1e-a162-4482-882d-caa382935b0b",
+      "kind": "expense",
+      "amount_cents": 1600000,
+      "occurred_on": "2026-06-05",
+      "category": "Инструменты",
+      "description": "Расходы на инструменты",
+      "created_at": "2026-10-26T17:01:18.680Z",
+      "version": 1,
+      "deleted_at": null
+    },
+    {
+      "id": 3,
+      "external_id": "05d3edfa-8d10-42eb-9040-64dc8f33009e",
+      "kind": "income",
+      "amount_cents": 6000000,
+      "occurred_on": "2026-06-05",
+      "category": "Проекты",
+      "description": "Поступление по проекту",
+      "created_at": "2026-10-26T17:01:18.680Z",
+      "version": 1,
+      "deleted_at": null
+    },
+    {
+      "id": 2,
+      "external_id": "404e190d-cb52-4d0d-bc3c-a4e3c7a29d7f",
+      "kind": "expense",
+      "amount_cents": 1700000,
+      "occurred_on": "2026-05-05",
+      "category": "Инструменты",
+      "description": "Расходы на инструменты",
+      "created_at": "2026-10-26T17:01:18.680Z",
+      "version": 1,
+      "deleted_at": null
+    },
+    {
+      "id": 1,
+      "external_id": "d92a6379-01ed-44a4-b83f-083d9f06bd48",
+      "kind": "income",
+      "amount_cents": 6500000,
+      "occurred_on": "2026-05-05",
+      "category": "Проекты",
+      "description": "Поступление по проекту",
+      "created_at": "2026-10-26T17:01:18.680Z",
+      "version": 1,
+      "deleted_at": null
+    }
+  ]
+}
