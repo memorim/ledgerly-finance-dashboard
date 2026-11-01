@@ -2,7 +2,7 @@ const loadFeedback = document.createElement('p');
 loadFeedback.className = 'load-feedback';
 loadFeedback.setAttribute('role', 'status');
 loadFeedback.style.cssText =
-  'position:fixed;bottom:16px;left:16px;right:16px;z-index:9999;background:#fff8dd;color:#222;padding:12px 20px;margin:0;font:14px/1.5 system-ui;border-radius:8px';
+  'position:fixed;bottom:16px;left:16px;right:16px;z-index:9999;background:#e9ecfc;color:#20263b;padding:12px 20px;margin:0;font:14px/1.5 system-ui;border-radius:8px';
 document.querySelector('main').prepend(loadFeedback);
 let lastLoadArgs = [];
 async function load(...args) {
@@ -62,7 +62,7 @@ async function loadData() {
   document.querySelector('#goal-amount').textContent = money(cash.goal);
   document.querySelector('#goal-percent').textContent = cash.goalPercent + '%';
   document.querySelector('#goal-ring').style.background =
-    `conic-gradient(#8a9a77 ${cash.goalPercent}%,#eee 0)`;
+    `conic-gradient(#4867e8 ${cash.goalPercent}%,#e4e8f1 0)`;
   document.querySelector('#goal-remaining').textContent = 'Осталось ' + money(cash.goalRemaining);
   const form = document.querySelector('#settings-form');
   if (!form.contains(document.activeElement)) {

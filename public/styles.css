@@ -1,10 +1,10 @@
 :root {
   font-family: 'DM Sans', sans-serif;
-  color: #1c211c;
-  background: #edf0e8;
-  --green: #386447;
-  --lime: #d8f06d;
-  --line: #d9ded3;
+  color: #20263b;
+  background: #f4f6fb;
+  --accent: #4867e8;
+  --brand: #4867e8;
+  --line: #e4e8f1;
 }
 * {
   box-sizing: border-box;
@@ -26,8 +26,8 @@ aside {
   padding: 1.5rem 1rem;
   display: flex;
   flex-direction: column;
-  background: #1b251d;
-  color: #bbc6ba;
+  background: #191d31;
+  color: #cad1e6;
 }
 .logo {
   display: flex;
@@ -43,8 +43,8 @@ aside {
   width: 1.8125rem;
   height: 1.8125rem;
   border-radius: 0.5rem;
-  background: var(--lime);
-  color: #1d2a20;
+  background: var(--brand);
+  color: #ffffff;
   font: 400 1.125rem 'Instrument Serif';
 }
 nav {
@@ -56,14 +56,14 @@ aside button {
   border-radius: 0.5rem;
   padding: 0.625rem;
   background: none;
-  color: #8f9c90;
+  color: #cad1e6;
   text-align: left;
   font-size: 0.6875rem;
   cursor: pointer;
 }
 aside button.active,
 aside button:hover {
-  background: #2c392e;
+  background: #2e385f;
   color: white;
 }
 aside button i {
@@ -78,7 +78,7 @@ aside button i {
   align-items: center;
   gap: 0.5625rem;
   padding: 1rem 0.5rem 0;
-  border-top: 0.0625rem solid #354137;
+  border-top: 0.0625rem solid #2e385f;
 }
 .user > span {
   display: grid;
@@ -86,9 +86,9 @@ aside button i {
   width: 2rem;
   height: 2rem;
   border-radius: 50%;
-  background: #d7bb8a;
-  color: #283027;
-  font-size: 0.5625rem;
+  background: #6683f0;
+  color: #20263b;
+  font-size: 0.75rem;
 }
 .user p,
 .user b,
@@ -101,8 +101,8 @@ aside button i {
   color: #fff;
 }
 .user small {
-  font-size: 0.5rem;
-  color: #778579;
+  font-size: 0.75rem;
+  color: #cad1e6;
   margin-top: 0.125rem;
 }
 main {
@@ -116,9 +116,9 @@ main > header {
   margin-bottom: 1.6875rem;
 }
 small {
-  font-size: 0.4375rem;
+  font-size: 0.75rem;
   letter-spacing: 0.12em;
-  color: #899087;
+  color: #636e89;
 }
 h1 {
   margin: 0.3125rem 0 0;
@@ -128,7 +128,7 @@ h1 {
 .submit {
   border: 0;
   border-radius: 0.5rem;
-  background: #1c281f;
+  background: #4867e8;
   color: white;
   padding: 0.6875rem 0.9375rem;
   font-size: 0.625rem;
@@ -142,7 +142,7 @@ h1 {
 }
 .metrics article,
 .panel {
-  background: #fafbf7;
+  background: #ffffff;
   border: 0.0625rem solid var(--line);
   border-radius: 0.75rem;
 }
@@ -155,32 +155,32 @@ h1 {
   display: block;
 }
 .metrics span {
-  color: #777f77;
-  font-size: 0.5625rem;
+  color: #636e89;
+  font-size: 0.75rem;
 }
 .metrics strong {
   margin: 0.4375rem 0;
   font-size: 1.25rem;
 }
 .metrics small {
-  font-size: 0.4375rem;
+  font-size: 0.75rem;
   letter-spacing: 0;
 }
 .metrics .up {
-  color: #418356;
+  color: #4867e8;
 }
 .metrics .balance {
-  background: #315c40;
+  background: #2e385f;
   color: white;
 }
 .metrics .balance span {
-  color: #b9cabd;
+  color: #cad1e6;
 }
 .metrics .balance i {
   display: block;
   margin-top: 0.75rem;
-  color: #b9cabd;
-  font-size: 0.4375rem;
+  color: #cad1e6;
+  font-size: 0.75rem;
   font-style: normal;
 }
 .content {
@@ -206,7 +206,7 @@ h1 {
   background: white;
   border-radius: 0.4375rem;
   padding: 0.4375rem 0.5625rem;
-  font-size: 0.5rem;
+  font-size: 0.75rem;
 }
 .chart {
   position: relative;
@@ -214,7 +214,7 @@ h1 {
   margin-top: 1.25rem;
   padding: 0 0.625rem 1.25rem 2.5rem;
   border-bottom: 0.0625rem solid var(--line);
-  background: repeating-linear-gradient(#fff0 0 2.8125rem, #e7eae3 2.875rem);
+  background: repeating-linear-gradient(#fff0 0 2.8125rem, #e4e8f1 2.875rem);
 }
 .y {
   position: absolute;
@@ -224,8 +224,8 @@ h1 {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  color: #9a9f98;
-  font-size: 0.4375rem;
+  color: #77819a;
+  font-size: 0.75rem;
 }
 .bars {
   display: flex;
@@ -238,17 +238,17 @@ h1 {
   width: 1.625rem;
   height: var(--h);
   border-radius: 0.3125rem 0.3125rem 0 0;
-  background: #b9c9b8;
+  background: #6683f0;
 }
 .bars i.current {
-  background: var(--green);
+  background: var(--accent);
 }
 .months {
   display: flex;
   justify-content: space-around;
   margin-top: 0.4375rem;
-  color: #92988f;
-  font-size: 0.4375rem;
+  color: #77819a;
+  font-size: 0.75rem;
 }
 .goal {
   text-align: center;
@@ -259,8 +259,8 @@ h1 {
 }
 .goal p {
   margin: 0.125rem;
-  color: #8c928a;
-  font-size: 0.5rem;
+  color: #636e89;
+  font-size: 0.75rem;
 }
 .ring {
   display: grid;
@@ -269,7 +269,7 @@ h1 {
   height: 6.5625rem;
   margin: 1.25rem auto;
   border-radius: 50%;
-  background: conic-gradient(var(--green) 72%, #e2e6df 0);
+  background: conic-gradient(var(--accent) 72%, #e4e8f1 0);
   position: relative;
 }
 .ring:after {
@@ -277,15 +277,15 @@ h1 {
   position: absolute;
   inset: 0.625rem;
   border-radius: 50%;
-  background: #fafbf7;
+  background: #ffffff;
 }
 .ring strong {
   position: relative;
   z-index: 1;
 }
 .goal > span {
-  font-size: 0.5rem;
-  color: #737a72;
+  font-size: 0.75rem;
+  color: #636e89;
 }
 .invoices {
   padding-bottom: 0.625rem;
@@ -295,13 +295,13 @@ h1 {
   background: none;
   padding: 0.375rem 0.5625rem;
   border-radius: 0.375rem;
-  color: #858b83;
-  font-size: 0.5rem;
+  color: #636e89;
+  font-size: 0.75rem;
   cursor: pointer;
 }
 .filters button.active {
-  background: #e8ece5;
-  color: #263328;
+  background: #e4e8f1;
+  color: #20263b;
 }
 .table {
   margin-top: 0.9375rem;
@@ -312,12 +312,12 @@ h1 {
   gap: 0.75rem;
   align-items: center;
   padding: 0.6875rem 0.3125rem;
-  border-top: 0.0625rem solid #e2e6df;
-  font-size: 0.5625rem;
+  border-top: 0.0625rem solid #e4e8f1;
+  font-size: 0.75rem;
 }
 .th {
-  color: #979c95;
-  font-size: 0.4375rem;
+  color: #77819a;
+  font-size: 0.75rem;
 }
 .client {
   display: flex;
@@ -330,8 +330,8 @@ h1 {
   width: 1.8125rem;
   height: 1.8125rem;
   border-radius: 0.5rem;
-  background: #e4e8dc;
-  color: #46614d;
+  background: #e4e8f1;
+  color: #2e385f;
   font-style: normal;
   font-weight: 700;
 }
@@ -347,23 +347,23 @@ h1 {
   width: max-content;
   padding: 0.25rem 0.4375rem;
   border-radius: 0.625rem;
-  font-size: 0.4375rem;
+  font-size: 0.75rem;
 }
 .badge-paid {
-  background: #dcecdf;
-  color: #3f754c;
+  background: #e9ecfc;
+  color: #2e385f;
 }
 .badge-sent {
-  background: #e4e6f1;
-  color: #5b6183;
+  background: #e4e8f1;
+  color: #2e385f;
 }
 .badge-overdue {
-  background: #f2deda;
-  color: #9a5144;
+  background: #f9e4d8;
+  color: #914d30;
 }
 .badge-draft {
-  background: #e8e8e3;
-  color: #777;
+  background: #e4e8f1;
+  color: #636e89;
 }
 .more {
   border: 0;
@@ -374,11 +374,11 @@ dialog {
   border: 0;
   border-radius: 0.9375rem;
   padding: 0;
-  background: #f8f9f5;
-  box-shadow: 0 1.5625rem 5.625rem #17201970;
+  background: #f4f6fb;
+  box-shadow: 0 1.5625rem 5.625rem #191d3170;
 }
 dialog::backdrop {
-  background: #17201999;
+  background: #191d3199;
   backdrop-filter: blur(0.25rem);
 }
 dialog form {
@@ -394,7 +394,7 @@ dialog h2 {
 dialog label {
   display: grid;
   gap: 0.3125rem;
-  font-size: 0.5rem;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 dialog input {
@@ -535,7 +535,7 @@ nav a:hover {
 }
 button:focus-visible,
 a:focus-visible {
-  outline: 0.1875rem solid #899e6d;
+  outline: 0.1875rem solid #4867e8;
   outline-offset: 0.1875rem;
 }
 
@@ -552,7 +552,7 @@ a:focus-visible {
   min-height: 0.0625rem;
 }
 .bars .bar-month .expense {
-  background: #c58255;
+  background: #eba17d;
 }
 .cash-toolbar {
   display: flex;
@@ -564,10 +564,10 @@ a:focus-visible {
 .cash-toolbar a,
 #settings-form button {
   padding: 0.5625rem;
-  border: 0.0625rem solid #c9c9bd;
+  border: 0.0625rem solid #e4e8f1;
   border-radius: 0.4375rem;
   background: #fff;
-  color: #222;
+  color: #20263b;
   font: inherit;
   cursor: pointer;
 }
@@ -579,7 +579,7 @@ a:focus-visible {
   gap: 1.25rem;
   justify-content: space-between;
   padding: 0.8125rem 0;
-  border-bottom: 0.0625rem solid #eee;
+  border-bottom: 0.0625rem solid #e4e8f1;
   font-size: 0.8125rem;
 }
 .cash-row span {
@@ -589,7 +589,7 @@ a:focus-visible {
   display: block;
   margin-top: 0.3125rem;
   white-space: pre-wrap;
-  color: #777;
+  color: #636e89;
 }
 #settings-form {
   display: grid;
@@ -607,7 +607,7 @@ select {
   max-width: 100%;
   box-sizing: border-box;
   padding: 0.5625rem;
-  border: 0.0625rem solid #ccc;
+  border: 0.0625rem solid #e4e8f1;
   border-radius: 0.375rem;
 }
 #csv-result {
@@ -630,7 +630,7 @@ select {
 
 input:focus-visible,
 select:focus-visible {
-  outline: 0.1875rem solid #899e6d;
+  outline: 0.1875rem solid #4867e8;
   outline-offset: 0.1875rem;
 }
 
@@ -646,7 +646,7 @@ select:focus-visible {
 .cash-actions button {
   min-height: 2.75rem;
   padding: 0.5rem 0.75rem;
-  border: 0.0625rem solid #e3e5e8;
+  border: 0.0625rem solid #e4e8f1;
   border-radius: 0.5rem;
   background: white;
   color: inherit;
