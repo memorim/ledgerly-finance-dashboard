@@ -1,3 +1,21 @@
+let transactionOffset = 0;
+const transactionPageSize = 100;
+const pageControls = document.createElement('nav');
+pageControls.setAttribute('aria-label', 'Страницы операций');
+const previousPage = document.createElement('button');
+previousPage.textContent = 'Предыдущие операции';
+const nextPage = document.createElement('button');
+nextPage.textContent = 'Следующие операции';
+previousPage.onclick = () => {
+  transactionOffset = Math.max(0, transactionOffset - transactionPageSize);
+  load();
+};
+nextPage.onclick = () => {
+  transactionOffset += transactionPageSize;
+  load();
+};
+pageControls.append(previousPage, nextPage);
+document.querySelector('#transaction-list').after(pageControls);
 const loadFeedback = document.createElement('p');
 loadFeedback.className = 'load-feedback';
 loadFeedback.setAttribute('role', 'status');
@@ -37,7 +55,7 @@ async function loadData() {
     [
       fetch('/api/summary'),
       fetch(`/api/invoices?status=${status}`),
-      fetch('/api/transactions'),
+      fetch(`/api/transactions?limit=${transactionPageSize}&offset=${transactionOffset}`),
     ].map(async (response) => {
       const r = await response;
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -114,6 +132,8 @@ async function loadData() {
         )
         .join('')
     : '<p>Добавьте первую операцию.</p>';
+  previousPage.disabled = transactionOffset === 0;
+  nextPage.disabled = transactions.length < transactionPageSize;
   currentTransactions = transactions;
   if (cash.undatedIncome) {
     document.querySelector('#balance-note').textContent +=

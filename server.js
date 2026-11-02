@@ -105,15 +105,28 @@ export function createApp(db = createDb()) {
       ? res.status(204).end()
       : res.status(404).json({ message: 'Счёт не найден' });
   });
-  app.get('/api/transactions', (_req, res) =>
+  app.get('/api/transactions', (req, res) => {
+    const parsed = z
+      .object({
+        limit: z.coerce.number().int().min(1).max(100).default(100),
+        offset: z.coerce.number().int().min(0).max(Number.MAX_SAFE_INTEGER).default(0),
+      })
+      .strict()
+      .safeParse(req.query);
+    if (!parsed.success) return res.status(400).json({ message: 'Проверьте параметры страницы' });
+    const { limit, offset } = parsed.data;
+    const total = db
+      .prepare('SELECT count(*) n FROM transactions WHERE deleted_at IS NULL')
+      .get().n;
+    res.set('X-Total-Count', String(total));
     res.json(
       db
         .prepare(
-          'SELECT * FROM transactions WHERE deleted_at IS NULL ORDER BY occurred_on DESC,id DESC LIMIT 100',
+          'SELECT * FROM transactions WHERE deleted_at IS NULL ORDER BY occurred_on DESC,id DESC LIMIT ? OFFSET ?',
         )
-        .all(),
-    ),
-  );
+        .all(limit, offset),
+    );
+  });
   app.post('/api/transactions', (req, res) => {
     const p = transactionSchema.safeParse(req.body);
     if (!p.success)
@@ -199,20 +212,36 @@ export function createApp(db = createDb()) {
         .json({ code: 'version_conflict', message: 'Операция уже изменена. Обновите список.' });
     res.status(204).end();
   });
-  app.get('/api/transactions/export.csv', (_req, res) => {
-    const rows = db
-      .prepare(
-        'SELECT * FROM transactions WHERE deleted_at IS NULL ORDER BY occurred_on,id LIMIT 1001',
-      )
-      .all();
-    if (rows.length > 1000)
-      return res.status(413).json({ message: 'Один CSV содержит до 1000 операций' });
-    res
-      .set({
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': 'attachment; filename="ledgerly-transactions.csv"',
-      })
-      .send(exportCsv(rows));
+  app.get('/api/transactions/export.csv', async (req, res, next) => {
+    res.set({
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': 'attachment; filename="ledgerly-transactions.csv"',
+    });
+    try {
+      res.write(exportCsv([]));
+      // Iterate one row at a time and respect backpressure; never truncate the export.
+      for (const row of db
+        .prepare('SELECT * FROM transactions WHERE deleted_at IS NULL ORDER BY occurred_on,id')
+        .iterate()) {
+        if (res.destroyed) break;
+        const line = exportCsv([row]).split('\r\n').slice(1).join('\r\n');
+        if (!res.write(line)) {
+          await new Promise((resolve) => {
+            const done = () => {
+              res.off('drain', done);
+              res.off('close', done);
+              resolve();
+            };
+            res.once('drain', done);
+            res.once('close', done);
+          });
+        }
+      }
+      res.end();
+    } catch (error) {
+      if (res.headersSent) res.destroy();
+      else next(error);
+    }
   });
   app.post('/api/transactions/import', (req, res) => {
     const p = z
