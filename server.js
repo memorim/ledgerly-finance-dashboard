@@ -371,6 +371,8 @@ export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
   return app;
 }
 if (process.env.NODE_ENV !== 'test') {
+  if (process.env.APP_PUBLIC_ORIGIN && !process.env.APP_ACCOUNTS)
+    throw new Error('Public access requires APP_ACCOUNTS');
   const app = process.env.APP_ACCOUNTS
     ? createHostedApp({
         createDb,
