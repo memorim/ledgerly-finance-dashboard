@@ -1,3 +1,4 @@
+import { createHostedApp } from './hosted.js';
 import { operatorBoundary } from './request-policy.js';
 import express from 'express';
 import { dirname, resolve } from 'node:path';
@@ -30,7 +31,7 @@ const invoiceSchema = z
   })
   .strict();
 
-export function createApp(db = createDb()) {
+export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
   const app = express();
   const revision = /^[a-f0-9]{40}$/i.test(process.env.APP_REVISION || '')
     ? process.env.APP_REVISION
@@ -40,7 +41,13 @@ export function createApp(db = createDb()) {
     next();
   });
 
-  app.use(operatorBoundary());
+  app.use(
+    operatorBoundary(
+      authenticatedOrigin
+        ? { ...process.env, APP_PUBLIC_ORIGIN: authenticatedOrigin }
+        : process.env,
+    ),
+  );
   app.use(express.json({ limit: '256kb' }));
   app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
   app.get('/api/summary', (_q, res) => {
@@ -363,7 +370,15 @@ export function createApp(db = createDb()) {
   });
   return app;
 }
-if (process.env.NODE_ENV !== 'test')
-  createApp().listen(process.env.PORT || 4300, process.env.HOST || '127.0.0.1', () =>
-    console.log('Ledgerly: http://localhost:4300'),
-  );
+if (process.env.NODE_ENV !== 'test') {
+  const app = process.env.APP_ACCOUNTS
+    ? createHostedApp({
+        createDb,
+        createApp,
+        origin: process.env.APP_PUBLIC_ORIGIN,
+        accounts: JSON.parse(process.env.APP_ACCOUNTS),
+        directory: resolve(root, 'data', 'accounts'),
+      })
+    : createApp();
+  app.listen(process.env.PORT || 4300, process.env.HOST || '127.0.0.1');
+}
