@@ -19,6 +19,7 @@ import {
 import { MoneyRangeError, hasMinorUnitPrecision } from './money.js';
 
 import { createDb } from './database.js';
+import { dataDirectory } from './storage.js';
 export { createDb } from './database.js';
 const root = dirname(fileURLToPath(import.meta.url));
 const invoiceSchema = z
@@ -379,7 +380,7 @@ if (process.env.NODE_ENV !== 'test') {
         createApp,
         origin: process.env.APP_PUBLIC_ORIGIN,
         accounts: JSON.parse(process.env.APP_ACCOUNTS),
-        directory: resolve(root, 'data', 'accounts'),
+        directory: resolve(dataDirectory(), 'accounts'),
       })
     : createApp();
   app.listen(process.env.PORT || 4300, process.env.HOST || '127.0.0.1');

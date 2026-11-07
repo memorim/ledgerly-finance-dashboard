@@ -1,11 +1,10 @@
 import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-const root = dirname(fileURLToPath(import.meta.url));
+import { dataDirectory } from './storage.js';
 
-export function createDb(filename = resolve(root, 'data', 'ledgerly.db')) {
+export function createDb(filename = resolve(dataDirectory(), 'ledgerly.db')) {
   if (filename !== ':memory:') mkdirSync(dirname(filename), { recursive: true });
   const db = new DatabaseSync(filename);
   try {
