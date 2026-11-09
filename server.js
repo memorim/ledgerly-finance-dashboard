@@ -15,11 +15,13 @@ import {
   writeCashChange,
   exportCsv,
   importedRows,
+  databaseTransaction,
 } from './finance.js';
 import { MoneyRangeError, hasMinorUnitPrecision } from './money.js';
 
 import { createDb } from './database.js';
 import { dataDirectory } from './storage.js';
+import { accountSchema, createPostgresDb } from './postgres.js';
 export { createDb } from './database.js';
 const root = dirname(fileURLToPath(import.meta.url));
 const invoiceSchema = z
@@ -34,8 +36,10 @@ const invoiceSchema = z
 
 export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
   const app = express();
-  const revision = /^[a-f0-9]{40}$/i.test(process.env.APP_REVISION || '')
-    ? process.env.APP_REVISION
+  const configuredRevision =
+    process.env.RENDER === 'true' ? process.env.RENDER_GIT_COMMIT : process.env.APP_REVISION;
+  const revision = /^[a-f0-9]{40}$/i.test(configuredRevision || '')
+    ? configuredRevision
     : 'local-unversioned';
   app.use('/api/health', (_req, res, next) => {
     res.set('X-App-Revision', revision);
@@ -50,70 +54,83 @@ export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
     ),
   );
   app.use(express.json({ limit: '256kb' }));
-  app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
-  app.get('/api/summary', (_q, res) => {
-    res.json({ ...invoiceSummary(db), cash: cashSummary(db) });
+  app.get('/api/health', async (_req, res) => {
+    await db.prepare('SELECT 1').get();
+    res.json({ status: 'ok' });
   });
-  app.get('/api/invoices', (req, res) => {
+  app.get('/api/summary', async (_q, res) => {
+    res.json(
+      await databaseTransaction(db, async () => ({
+        ...(await invoiceSummary(db)),
+        cash: await cashSummary(db),
+      })),
+    );
+  });
+  app.get('/api/invoices', async (req, res) => {
     const status = String(req.query.status || '');
     const rows =
       status && status !== 'all'
-        ? db.prepare('SELECT * FROM invoices WHERE status=? ORDER BY due_date').all(status)
-        : db.prepare('SELECT * FROM invoices ORDER BY due_date').all();
+        ? await db.prepare('SELECT * FROM invoices WHERE status=? ORDER BY due_date').all(status)
+        : await db.prepare('SELECT * FROM invoices ORDER BY due_date').all();
     res.json(rows);
   });
-  app.post('/api/invoices', (req, res) => {
+  app.post('/api/invoices', async (req, res) => {
     const parsed = invoiceSchema.safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: 'Проверьте данные счёта' });
     const i = parsed.data,
       today = new Date().toISOString().slice(0, 10);
-    const out = writeCashChange(db, () =>
-      db
-        .prepare(
-          'INSERT INTO invoices(client,title,amount,due_date,status,created_at,paid_at,amount_cents) VALUES(?,?,?,?,?,?,?,?)',
-        )
-        .run(
-          i.client,
-          i.title,
-          i.amount,
-          i.dueDate,
-          i.status,
-          today,
-          i.status === 'paid' ? today : null,
-          cents(i.amount),
-        ),
+    const out = await writeCashChange(
+      db,
+      async () =>
+        await db
+          .prepare(
+            'INSERT INTO invoices(client,title,amount,due_date,status,created_at,paid_at,amount_cents) VALUES(?,?,?,?,?,?,?,?)',
+          )
+          .run(
+            i.client,
+            i.title,
+            i.amount,
+            i.dueDate,
+            i.status,
+            today,
+            i.status === 'paid' ? today : null,
+            cents(i.amount),
+          ),
     );
     res.status(201).json({ id: Number(out.lastInsertRowid), ...i });
   });
-  app.patch('/api/invoices/:id/status', (req, res) => {
+  app.patch('/api/invoices/:id/status', async (req, res) => {
     const parsed = z
       .object({ status: z.enum(['draft', 'sent', 'paid', 'overdue']) })
       .safeParse(req.body);
     if (!parsed.success) return res.status(400).json({ message: 'Неверный статус' });
-    const out = writeCashChange(db, () =>
-      db
-        .prepare(
-          "UPDATE invoices SET status=?,paid_at=CASE WHEN ?='paid' THEN COALESCE(paid_at,?) ELSE NULL END WHERE id=?",
-        )
-        .run(
-          parsed.data.status,
-          parsed.data.status,
-          new Date().toISOString().slice(0, 10),
-          Number(req.params.id),
-        ),
+    const out = await writeCashChange(
+      db,
+      async () =>
+        await db
+          .prepare(
+            "UPDATE invoices SET status=?,paid_at=CASE WHEN ?='paid' THEN COALESCE(paid_at,?) ELSE NULL END WHERE id=?",
+          )
+          .run(
+            parsed.data.status,
+            parsed.data.status,
+            new Date().toISOString().slice(0, 10),
+            Number(req.params.id),
+          ),
     );
     if (!out.changes) return res.status(404).json({ message: 'Счёт не найден' });
     res.json({ ok: true });
   });
-  app.delete('/api/invoices/:id', (req, res) => {
-    const out = writeCashChange(db, () =>
-      db.prepare('DELETE FROM invoices WHERE id=?').run(Number(req.params.id)),
+  app.delete('/api/invoices/:id', async (req, res) => {
+    const out = await writeCashChange(
+      db,
+      async () => await db.prepare('DELETE FROM invoices WHERE id=?').run(Number(req.params.id)),
     );
     return out.changes
       ? res.status(204).end()
       : res.status(404).json({ message: 'Счёт не найден' });
   });
-  app.get('/api/transactions', (req, res) => {
+  app.get('/api/transactions', async (req, res) => {
     const parsed = z
       .object({
         limit: z.coerce.number().int().min(1).max(100).default(100),
@@ -123,67 +140,71 @@ export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
       .safeParse(req.query);
     if (!parsed.success) return res.status(400).json({ message: 'Проверьте параметры страницы' });
     const { limit, offset } = parsed.data;
-    const total = db
-      .prepare('SELECT count(*) n FROM transactions WHERE deleted_at IS NULL')
-      .get().n;
+    const total = (
+      await db.prepare('SELECT count(*) n FROM transactions WHERE deleted_at IS NULL').get()
+    ).n;
     res.set('X-Total-Count', String(total));
     res.json(
-      db
+      await db
         .prepare(
           'SELECT * FROM transactions WHERE deleted_at IS NULL ORDER BY occurred_on DESC,id DESC LIMIT ? OFFSET ?',
         )
         .all(limit, offset),
     );
   });
-  app.post('/api/transactions', (req, res) => {
+  app.post('/api/transactions', async (req, res) => {
     const p = transactionSchema.safeParse(req.body);
     if (!p.success)
       return res.status(400).json({ message: 'Проверьте сумму, дату и категорию операции' });
     const t = p.data,
       id = randomUUID();
-    writeCashChange(db, () =>
-      db
-        .prepare(
-          'INSERT INTO transactions(external_id,kind,amount_cents,occurred_on,category,description,created_at) VALUES(?,?,?,?,?,?,?)',
-        )
-        .run(
-          id,
-          t.kind,
-          cents(t.amount),
-          t.date,
-          t.category,
-          t.description,
-          new Date().toISOString(),
-        ),
+    await writeCashChange(
+      db,
+      async () =>
+        await db
+          .prepare(
+            'INSERT INTO transactions(external_id,kind,amount_cents,occurred_on,category,description,created_at) VALUES(?,?,?,?,?,?,?)',
+          )
+          .run(
+            id,
+            t.kind,
+            cents(t.amount),
+            t.date,
+            t.category,
+            t.description,
+            new Date().toISOString(),
+          ),
     );
     res.status(201).json({ id, ...t, version: 1 });
   });
-  app.patch('/api/transactions/:id', (req, res) => {
+  app.patch('/api/transactions/:id', async (req, res) => {
     const id = z.string().uuid().safeParse(req.params.id);
     const parsed = transactionSchema
       .extend({ version: z.number().int().positive() })
       .safeParse(req.body);
     if (!id.success || !parsed.success)
       return res.status(400).json({ message: 'Проверьте операцию и её версию' });
-    const old = db
+    const old = await db
       .prepare('SELECT version,deleted_at FROM transactions WHERE external_id=?')
       .get(id.data);
     if (!old || old.deleted_at) return res.status(404).json({ message: 'Операция не найдена' });
     const { version, ...transaction } = parsed.data;
-    const result = writeCashChange(db, () =>
-      db
-        .prepare(
-          'UPDATE transactions SET kind=?,amount_cents=?,occurred_on=?,category=?,description=?,version=version+1 WHERE external_id=? AND version=? AND deleted_at IS NULL',
-        )
-        .run(
-          transaction.kind,
-          cents(transaction.amount),
-          transaction.date,
-          transaction.category,
-          transaction.description,
-          id.data,
-          version,
-        ),
+    const result = await writeCashChange(
+      db,
+      async () =>
+        await db
+          .prepare(
+            'UPDATE transactions SET kind=?,amount_cents=?,occurred_on=?,category=?,description=?,version=version+1 WHERE external_id=? AND version=? AND deleted_at IS NULL',
+          )
+          .run(
+            transaction.kind,
+            cents(transaction.amount),
+            transaction.date,
+            transaction.category,
+            transaction.description,
+            id.data,
+            version,
+          ),
     );
     if (!result.changes)
       return res.status(409).json({
@@ -193,26 +214,28 @@ export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
       });
     res.json({ id: id.data, ...transaction, version: version + 1 });
   });
-  app.delete('/api/transactions/:id', (req, res) => {
+  app.delete('/api/transactions/:id', async (req, res) => {
     const id = z.string().uuid().safeParse(req.params.id),
       parsed = z.object({ version: z.number().int().positive() }).strict().safeParse(req.body);
     if (!id.success || !parsed.success)
       return res.status(400).json({ message: 'Укажите корректный id и версию операции' });
-    const old = db
+    const old = await db
       .prepare('SELECT version,deleted_at FROM transactions WHERE external_id=?')
       .get(id.data);
     if (!old) return res.status(404).json({ message: 'Операция не найдена' });
     if (old.deleted_at) return res.status(204).end();
-    const result = writeCashChange(db, () =>
-      db
-        .prepare(
-          'UPDATE transactions SET deleted_at=?,version=version+1 WHERE external_id=? AND version=? AND deleted_at IS NULL',
-        )
-        .run(new Date().toISOString(), id.data, parsed.data.version),
+    const result = await writeCashChange(
+      db,
+      async () =>
+        await db
+          .prepare(
+            'UPDATE transactions SET deleted_at=?,version=version+1 WHERE external_id=? AND version=? AND deleted_at IS NULL',
+          )
+          .run(new Date().toISOString(), id.data, parsed.data.version),
     );
     if (
       !result.changes &&
-      !db.prepare('SELECT deleted_at FROM transactions WHERE external_id=?').get(id.data)
+      !(await db.prepare('SELECT deleted_at FROM transactions WHERE external_id=?').get(id.data))
         ?.deleted_at
     )
       return res
@@ -228,7 +251,7 @@ export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
     try {
       res.write(exportCsv([]));
       // Iterate one row at a time and respect backpressure; never truncate the export.
-      for (const row of db
+      for await (const row of db
         .prepare('SELECT * FROM transactions WHERE deleted_at IS NULL ORDER BY occurred_on,id')
         .iterate()) {
         if (res.destroyed) break;
@@ -251,7 +274,7 @@ export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
       else next(error);
     }
   });
-  app.post('/api/transactions/import', (req, res) => {
+  app.post('/api/transactions/import', async (req, res) => {
     const p = z
       .object({ csv: z.string().min(1).max(200000) })
       .strict()
@@ -268,53 +291,50 @@ export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
     }
     const hash = createHash('sha256').update(JSON.stringify(rows)).digest('hex');
     let added = 0;
-    db.exec('BEGIN IMMEDIATE');
     try {
-      const previous = db.prepare('SELECT added FROM csv_imports WHERE hash=?').get(hash);
-      if (previous) {
-        db.exec('ROLLBACK');
-        return res.json({ added: previous.added, replayed: true });
-      }
-      const insert = db.prepare(
-        'INSERT INTO transactions(external_id,kind,amount_cents,occurred_on,category,description,created_at) VALUES(?,?,?,?,?,?,?)',
-      );
-      for (const row of rows) {
-        const id = row.id || randomUUID(),
-          old = db.prepare('SELECT * FROM transactions WHERE external_id=?').get(id);
-        if (old) {
-          if (
-            old.kind !== row.kind ||
-            old.amount_cents !== cents(row.amount) ||
-            old.occurred_on !== row.date ||
-            old.category !== row.category ||
-            old.description !== row.description ||
-            old.deleted_at !== null
-          )
-            throw new Error('conflict');
-          continue;
+      const result = await databaseTransaction(db, async () => {
+        const previous = await db.prepare('SELECT added FROM csv_imports WHERE hash=?').get(hash);
+        if (previous) {
+          return { added: previous.added, replayed: true };
         }
-        insert.run(
-          id,
-          row.kind,
-          cents(row.amount),
-          row.date,
-          row.category,
-          row.description,
-          new Date().toISOString(),
+        const insert = db.prepare(
+          'INSERT INTO transactions(external_id,kind,amount_cents,occurred_on,category,description,created_at) VALUES(?,?,?,?,?,?,?)',
         );
-        added++;
-      }
-      db.prepare('INSERT INTO csv_imports VALUES(?,?,?)').run(
-        hash,
-        added,
-        new Date().toISOString(),
-      );
-      invoiceSummary(db);
-      cashSummary(db);
-      db.exec('COMMIT');
-      res.json({ added, replayed: false });
+        for (const row of rows) {
+          const id = row.id || randomUUID(),
+            old = await db.prepare('SELECT * FROM transactions WHERE external_id=?').get(id);
+          if (old) {
+            if (
+              old.kind !== row.kind ||
+              old.amount_cents !== cents(row.amount) ||
+              old.occurred_on !== row.date ||
+              old.category !== row.category ||
+              old.description !== row.description ||
+              old.deleted_at !== null
+            )
+              throw new Error('conflict');
+            continue;
+          }
+          await insert.run(
+            id,
+            row.kind,
+            cents(row.amount),
+            row.date,
+            row.category,
+            row.description,
+            new Date().toISOString(),
+          );
+          added++;
+        }
+        await db
+          .prepare('INSERT INTO csv_imports VALUES(?,?,?)')
+          .run(hash, added, new Date().toISOString());
+        await invoiceSummary(db);
+        await cashSummary(db);
+        return { added, replayed: false };
+      });
+      res.json(result);
     } catch (error) {
-      if (db.isTransaction) db.exec('ROLLBACK');
       return res
         .status(error.message === 'conflict' || error instanceof MoneyRangeError ? 409 : 503)
         .json({
@@ -327,7 +347,7 @@ export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
         });
     }
   });
-  app.patch('/api/settings', (req, res) => {
+  app.patch('/api/settings', async (req, res) => {
     const p = z
       .object({
         goalAmount: moneyValue,
@@ -336,25 +356,20 @@ export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
       .strict()
       .safeParse(req.body);
     if (!p.success) return res.status(400).json({ message: 'Проверьте цель и начальный остаток' });
-    db.exec('BEGIN IMMEDIATE');
-    try {
-      db.prepare("UPDATE settings SET value=? WHERE key='goal_cents'").run(
-        cents(p.data.goalAmount),
-      );
-      db.prepare("UPDATE settings SET value=? WHERE key='opening_balance_cents'").run(
-        cents(p.data.openingBalance),
-      );
-      invoiceSummary(db);
-      cashSummary(db);
-      db.exec('COMMIT');
-      res.json({ ok: true });
-    } catch (error) {
-      db.exec('ROLLBACK');
-      throw error;
-    }
+    await databaseTransaction(db, async () => {
+      await db
+        .prepare("UPDATE settings SET value=? WHERE key='goal_cents'")
+        .run(cents(p.data.goalAmount));
+      await db
+        .prepare("UPDATE settings SET value=? WHERE key='opening_balance_cents'")
+        .run(cents(p.data.openingBalance));
+      await invoiceSummary(db);
+      await cashSummary(db);
+    });
+    res.json({ ok: true });
   });
   app.use(express.static(resolve(root, 'public')));
-  app.get(/^(?!\/api).*/, (_q, res) => res.sendFile(resolve(root, 'public', 'index.html')));
+  app.get(/^(?!\/api).*/, async (_q, res) => res.sendFile(resolve(root, 'public', 'index.html')));
   app.use((error, _req, res, _next) => {
     const status =
       error instanceof MoneyRangeError
@@ -364,11 +379,16 @@ export function createApp(db = createDb(), { authenticatedOrigin } = {}) {
           : error instanceof SyntaxError
             ? 400
             : 503;
-    if (status === 503) console.error({ event: 'request_error', error: String(error) });
+    if (status === 503)
+      console.error({
+        event: 'request_error',
+        error: db.dialect === 'postgres' ? 'database_error' : String(error),
+      });
     res.status(status).json({
       message: error instanceof MoneyRangeError ? error.message : 'Не удалось обработать запрос',
     });
   });
+  app.closeStorage = () => db.close();
   return app;
 }
 if (process.env.NODE_ENV !== 'test') {
@@ -376,12 +396,32 @@ if (process.env.NODE_ENV !== 'test') {
     throw new Error('Public access requires APP_ACCOUNTS');
   const app = process.env.APP_ACCOUNTS
     ? createHostedApp({
-        createDb,
+        createDb: process.env.DATABASE_URL
+          ? (_file, user) =>
+              createPostgresDb(process.env.DATABASE_URL, accountSchema(user), {
+                seed: () => createDb(':memory:'),
+              })
+          : createDb,
         createApp,
         origin: process.env.APP_PUBLIC_ORIGIN,
         accounts: JSON.parse(process.env.APP_ACCOUNTS),
         directory: resolve(dataDirectory(), 'accounts'),
       })
-    : createApp();
-  app.listen(process.env.PORT || 4300, process.env.HOST || '127.0.0.1');
+    : createApp(
+        process.env.DATABASE_URL
+          ? await createPostgresDb(process.env.DATABASE_URL, accountSchema(), {
+              seed: () => createDb(':memory:'),
+            })
+          : createDb(),
+      );
+  const server = app.listen(process.env.PORT || 4300, process.env.HOST || '127.0.0.1');
+  let closing = false;
+  for (const signal of ['SIGINT', 'SIGTERM'])
+    process.on(signal, async () => {
+      if (closing) return;
+      closing = true;
+      await new Promise((resolve) => server.close(resolve));
+      if (app.closeAccounts) await app.closeAccounts();
+      else await app.closeStorage();
+    });
 }

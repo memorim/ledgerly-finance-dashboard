@@ -76,6 +76,7 @@ export function calculateCash(rows, { opening = 0n, goal = 100000000n } = {}, no
 }
 
 export function cashSummary(db, now = new Date()) {
+  if (db.dialect === 'postgres') return postgresCashSummary(db, now);
   const paymentQuery = db.prepare(
     "SELECT paid_at date,amount_cents,'income' kind FROM invoices WHERE status='paid'",
   );
@@ -97,8 +98,12 @@ export function cashSummary(db, now = new Date()) {
 export function invoiceSummary(db) {
   const query = db.prepare('SELECT amount_cents,status,substr(created_at,1,7) month FROM invoices');
   query.setReadBigInts(true);
-  const invoices = query.all(),
-    months = new Map();
+  if (db.dialect === 'postgres') return query.all().then(summarizeInvoices);
+  return summarizeInvoices(query.all());
+}
+
+function summarizeInvoices(invoices) {
+  const months = new Map();
   let total = 0n,
     paid = 0n,
     expected = 0n;
@@ -123,13 +128,42 @@ export function invoiceSummary(db) {
   };
 }
 
-export function writeCashChange(db, change) {
+export async function writeCashChange(db, change) {
+  return databaseTransaction(db, async () => {
+    const result = await change();
+    await invoiceSummary(db);
+    await cashSummary(db);
+    return result;
+  });
+}
+
+async function postgresCashSummary(db, now) {
+  const read = async (sql) => {
+    const query = db.prepare(sql);
+    query.setReadBigInts(true);
+    return query.all();
+  };
+  const payments = await read(
+    "SELECT paid_at date,amount_cents,'income' kind FROM invoices WHERE status='paid'",
+  );
+  const transactions = await read(
+    'SELECT occurred_on date,amount_cents,kind FROM transactions WHERE deleted_at IS NULL',
+  );
+  const settings = Object.fromEntries(
+    (await read('SELECT key,value FROM settings')).map((row) => [row.key, row.value]),
+  );
+  return calculateCash(
+    [...payments, ...transactions],
+    { opening: settings.opening_balance_cents, goal: settings.goal_cents },
+    now,
+  );
+}
+
+export async function databaseTransaction(db, operation) {
+  if (db.dialect === 'postgres') return db.transaction(operation);
   db.exec('BEGIN IMMEDIATE');
   try {
-    const result = change();
-    // Keep the API's monetary range invariant in the same write transaction as every balance-changing mutation.
-    invoiceSummary(db);
-    cashSummary(db);
+    const result = await operation();
     db.exec('COMMIT');
     return result;
   } catch (error) {
