@@ -16,7 +16,12 @@ export function accountSchema(user) {
 }
 
 export function postgresConfig(connectionString) {
-  const url = new URL(connectionString);
+  let url;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    throw new Error('Configure a PostgreSQL DATABASE_URL');
+  }
   if (
     !['postgres:', 'postgresql:'].includes(url.protocol) ||
     !url.hostname ||
@@ -24,10 +29,19 @@ export function postgresConfig(connectionString) {
   )
     throw new Error('Configure a PostgreSQL DATABASE_URL');
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-  if (!local && url.searchParams.get('sslmode') !== 'verify-full')
+  if (
+    !local &&
+    (url.searchParams.getAll('sslmode').length !== 1 ||
+      url.searchParams.get('sslmode') !== 'verify-full' ||
+      ['ssl', 'sslcert', 'sslkey', 'sslrootcert', 'uselibpqcompat'].some((key) =>
+        url.searchParams.has(key),
+      ))
+  )
     throw new Error('Remote PostgreSQL requires sslmode=verify-full');
+  if (!local) url.searchParams.delete('sslmode');
   return {
-    connectionString,
+    connectionString: url.toString(),
+    ...(!local ? { ssl: { rejectUnauthorized: true, servername: url.hostname } } : {}),
     max: 5,
     idleTimeoutMillis: 10000,
     connectionTimeoutMillis: 10000,

@@ -11,6 +11,18 @@ const { createDb, createApp } = await import('../server.js');
 test('remote PostgreSQL checks certificates and preserves bound values', () => {
   assert.throws(() => postgresConfig('postgresql://u:p@db.example/ledgerly?sslmode=disable'));
   assert.throws(() => postgresConfig('postgresql://u:p@db.example/ledgerly'));
+  assert.throws(() =>
+    postgresConfig('postgresql://u:p@db.example/ledgerly?sslmode=verify-full&sslmode=disable'),
+  );
+  assert.throws(() =>
+    postgresConfig('postgresql://u:p@db.example/ledgerly?sslmode=verify-full&ssl=false'),
+  );
+  try {
+    postgresConfig('invalid-secret');
+    assert.fail('Expected a configuration error');
+  } catch (error) {
+    assert.ok(!String(error).includes('invalid-secret'));
+  }
   assert.ok(postgresConfig('postgresql://u:p@db.example/ledgerly?sslmode=verify-full'));
   const query = postgresSql(
     "SELECT '?' literal FROM invoices WHERE client=?",
