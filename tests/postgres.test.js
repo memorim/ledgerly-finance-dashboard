@@ -17,12 +17,10 @@ test('remote PostgreSQL checks certificates and preserves bound values', () => {
   assert.throws(() =>
     postgresConfig('postgresql://u:p@db.example/ledgerly?sslmode=verify-full&ssl=false'),
   );
-  try {
-    postgresConfig('invalid-secret');
-    assert.fail('Expected a configuration error');
-  } catch (error) {
-    assert.ok(!String(error).includes('invalid-secret'));
-  }
+  assert.throws(
+    () => postgresConfig('invalid-secret'),
+    (error) => !String(error).includes('invalid-secret'),
+  );
   assert.ok(postgresConfig('postgresql://u:p@db.example/ledgerly?sslmode=verify-full'));
   const query = postgresSql(
     "SELECT '?' literal FROM invoices WHERE client=?",
@@ -155,6 +153,7 @@ test(
         accounts: { alice: createHash('sha256').update(token).digest('hex') },
         directory: '/tmp/fixture-ledgerly',
       });
+      await hosted.readyAccounts();
       assert.equal(
         (await request(hosted).get('/api/invoices').set('Host', 'private.example')).status,
         401,

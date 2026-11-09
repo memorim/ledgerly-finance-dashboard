@@ -25,6 +25,20 @@ export function createHostedApp({ createDb, createApp, origin, accounts, directo
   const applications = new Map(),
     databases = [];
   const app = express();
+  function applicationFor(user) {
+    if (!applications.has(user)) {
+      const file = resolve(directory, createHash('sha256').update(user).digest('hex') + '.db');
+      const pending = Promise.resolve().then(async () => {
+        const db = await createDb(file, user);
+        databases.push(db);
+        return createApp(db, { authenticatedOrigin: origin });
+      });
+      applications.set(user, pending);
+      pending.catch(() => applications.delete(user));
+    }
+    return applications.get(user);
+  }
+  app.readyAccounts = () => Promise.all(entries.map(([user]) => applicationFor(user)));
   app.use(async (req, res, next) => {
     res.set('Cache-Control', 'no-store');
     if (req.get('host') !== parsed.host)
@@ -53,18 +67,8 @@ export function createHostedApp({ createDb, createApp, origin, accounts, directo
         .set('WWW-Authenticate', 'Basic realm="Private account", charset="UTF-8"')
         .status(401)
         .json({ message: 'Authentication required' });
-    if (!applications.has(user)) {
-      const file = resolve(directory, createHash('sha256').update(user).digest('hex') + '.db');
-      const pending = Promise.resolve().then(async () => {
-        const db = await createDb(file, user);
-        databases.push(db);
-        return createApp(db, { authenticatedOrigin: origin });
-      });
-      applications.set(user, pending);
-      pending.catch(() => applications.delete(user));
-    }
     try {
-      (await applications.get(user))(req, res, next);
+      (await applicationFor(user))(req, res, next);
     } catch {
       res.status(503).json({ message: 'Storage unavailable' });
     }

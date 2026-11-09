@@ -414,6 +414,7 @@ if (process.env.NODE_ENV !== 'test') {
             })
           : createDb(),
       );
+  if (process.env.DATABASE_URL && app.readyAccounts) await app.readyAccounts();
   const server = app.listen(process.env.PORT || 4300, process.env.HOST || '127.0.0.1');
   let closing = false;
   for (const signal of ['SIGINT', 'SIGTERM'])
